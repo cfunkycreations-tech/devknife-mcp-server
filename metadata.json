@@ -1,0 +1,5 @@
+{
+  "name": "DevKnife MCP Server",
+  "description": "A zero-cost MCP server that bundles 15+ essential developer utilities like JSON validation, hashing, UUID generation, and more.",
+  "requestFramePermissions": []
+}
