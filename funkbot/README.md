@@ -5,13 +5,33 @@ machine, no API key, no cloud, no filter but your own. Tools, skills, MCP,
 subagents, persistent memory, voice in and out, a permission gate, and recursive
 self-improvement: it rewrites its own code and learns from its own learning.
 
+## Launch
+
+**Windows — build the exe once, double-click forever:**
+
+```
+build_exe.bat          ->  dist\FunkBot.exe
+```
+
+It installs deps, generates the icon, runs the tests, and refuses to build a
+broken exe. Double-clicking `FunkBot.exe` starts your local model if it isn't
+already running, boots the server, and opens the UI. Data lands in `data\` next
+to the exe, so upgrading is just replacing the file. No build needed if you'd
+rather not: `FunkBot.bat` does the same thing straight from source.
+PyInstaller can't cross-compile, so a Windows exe must be built on Windows.
+
+**Linux / macOS:** `./funkbot.sh` (or `make launch`).
+
+**Manual:**
+
 ```bash
 ollama serve &
 ollama pull qwen3:32b
 
 pip install -r requirements.txt
-python server.py            # http://localhost:8800
-python cli.py               # or the terminal
+python launcher.py          # model check + server + browser
+python server.py            # just the server, http://localhost:8800
+python cli.py               # the terminal
 ```
 
 Any OpenAI-compatible server works — Ollama, llama.cpp (`--jinja` for tools),
@@ -35,7 +55,9 @@ LM Studio, vLLM, KoboldCpp. Point `FUNKBOT_BASE_URL` at it and go.
 | `usage.py` | Token and context telemetry (local runs are free; cloud is priced). |
 | `voice.py` | Dictation via local faster-whisper or the browser. |
 | `server.py` + `web/` | FastAPI + the HUD: live thinking, tool trace, permission prompts, telemetry, mic, TTS. |
-| `tests/` | 33 tests, no network needed — including a stub model server that exercises the whole agent loop. |
+| `launcher.py` | The double-click entry point: brings the model up, boots the server, opens the browser, survives a missing model with a readable message. |
+| `make_icon.py` | Generates `FunkBot.ico` in pure Python — no Pillow, no network. |
+| `tests/` | 37 tests, no network needed — including a stub model server that exercises the whole agent loop. |
 
 ## Recursive learning
 
