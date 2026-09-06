@@ -1,0 +1,6 @@
+data/
+__pycache__/
+*.bak.*
+tools_generated.py
+
+web/funkbot.png

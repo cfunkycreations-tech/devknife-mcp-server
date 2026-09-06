@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FunkBot Avatar</title>
+<link rel="stylesheet" href="avatar.css">
+<style>
+  body { margin: 0; min-height: 100vh; background:
+         radial-gradient(circle at 50% 0%, #10251c 0%, #06080b 60%);
+         color: #e6e9ef; font: 14px ui-sans-serif, system-ui, sans-serif;
+         display: grid; place-content: center; gap: 46px; padding: 60px 20px; }
+  h1 { margin: 0; text-align: center; color: #2bff9e; letter-spacing: 4px;
+       font-size: 17px; text-shadow: 0 0 18px rgba(43,255,158,.6); }
+  .row { display: flex; gap: 54px; flex-wrap: wrap; justify-content: center; }
+  .cell { text-align: center; }
+  .cell small { display: block; margin-top: 26px; color: #8b93a7;
+                font: 700 10px/1 ui-monospace, monospace; letter-spacing: 1.5px; }
+  .big { --fb-size: 190px; }
+  .mid { --fb-size: 92px; }
+  .sm  { --fb-size: 44px; }
+  .controls { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  button { background: #151922; border: 1px solid #232936; color: #e6e9ef;
+           padding: 8px 15px; border-radius: 8px; cursor: pointer;
+           font: 600 12px ui-monospace, monospace; letter-spacing: .6px; }
+  button:hover { border-color: #2bff9e; color: #2bff9e; }
+  .frame-tuner { display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+                 justify-content: center; color: #8b93a7;
+                 font: 11px ui-monospace, monospace; letter-spacing: .5px; }
+  .frame-tuner code { color: #2bff9e; background: #10141b; padding: 6px 10px;
+                      border-radius: 6px; }
+  .frame-tuner input[type=range] { accent-color: #2bff9e; width: 130px;
+                                   vertical-align: middle; }
+</style>
+</head>
+<body>
+  <h1>FUNKBOT // AVATAR</h1>
+
+  <div class="row">
+    <div class="cell"><div class="big" id="hero"></div></div>
+  </div>
+
+  <div class="controls">
+    <button data-s="idle">idle</button>
+    <button data-s="listening">listening</button>
+    <button data-s="thinking">thinking</button>
+    <button data-s="tool">tool</button>
+    <button data-s="speaking">speaking</button>
+    <button data-s="pulse">pulse</button>
+  </div>
+
+  <div class="frame-tuner">
+    <label>zoom <input type="range" id="z" min="1" max="6" step=".05" value="2.6"></label>
+    <label>x <input type="range" id="x" min="0" max="100" step="1" value="52"></label>
+    <label>y <input type="range" id="y" min="0" max="100" step="1" value="27"></label>
+    <code id="out">frame: { zoom: 2.6, x: 52, y: 27 }</code>
+    <input type="file" id="pick" accept="image/*">
+  </div>
+
+  <div class="row" id="grid"></div>
+
+<script type="module">
+import { FunkAvatar } from './avatar.js';
+
+const hero = new FunkAvatar(document.getElementById('hero'));
+document.querySelectorAll('.controls button').forEach(b => {
+  b.onclick = () => b.dataset.s === 'pulse' ? hero.pulse() : (hero.state = b.dataset.s);
+});
+
+/* framing tuner — dial the crop, then paste the printed frame into your code */
+const [z, x, y, out, pick] = ['z', 'x', 'y', 'out', 'pick'].map(id =>
+  document.getElementById(id));
+let photoSrc = 'funkbot.png';
+
+function reframe() {
+  const frame = { zoom: +z.value, x: +x.value, y: +y.value };
+  hero.setPhoto(photoSrc, frame);
+  out.textContent = `frame: { zoom: ${frame.zoom}, x: ${frame.x}, y: ${frame.y} }`;
+}
+[z, x, y].forEach(el => el.oninput = reframe);
+pick.onchange = () => {
+  const f = pick.files[0];
+  if (!f) return;
+  URL.revokeObjectURL(photoSrc);
+  photoSrc = URL.createObjectURL(f);
+  reframe();
+};
+
+// every state side by side, plus the sizes it ships at
+const grid = document.getElementById('grid');
+for (const s of ['idle', 'listening', 'thinking', 'tool', 'speaking']) {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.innerHTML = `<div class="mid"></div><small>${s.toUpperCase()}</small>`;
+  grid.appendChild(cell);
+  new FunkAvatar(cell.firstElementChild, { label: false }).state = s;
+}
+const tiny = document.createElement('div');
+tiny.className = 'cell';
+tiny.innerHTML = '<div class="sm"></div><small>44PX</small>';
+grid.appendChild(tiny);
+new FunkAvatar(tiny.firstElementChild, { label: false }).state = 'thinking';
+</script>
+</body>
+</html>
