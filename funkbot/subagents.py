@@ -50,7 +50,8 @@ def run_one(task: str, preset: str = "researcher", context: str = "") -> dict:
     cfg = PRESETS.get(preset, PRESETS["researcher"])
     allowed = [s for s in tool_mod.specs() if s["name"] in cfg["tools"]]
     messages = [{"role": "user", "content": (f"{context}\n\n{task}" if context else task)}]
-    tally = usage_mod.Usage(model=WORKER_MODEL)
+    tally = usage_mod.Usage(model=WORKER_MODEL if WORKER_MODEL != 'auto'
+                            else llm.resolved_model())
     text = ""
 
     for _ in range(12):
