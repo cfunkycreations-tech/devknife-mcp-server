@@ -7,10 +7,12 @@
     python cli.py --learn            run the recursive learning pass
     python cli.py -p "one shot"      single prompt, print, exit
     python cli.py --yes              auto-approve every permission prompt
+    python cli.py --avatar <path>    install a portrait into the avatar ring
 """
 
 from __future__ import annotations
 
+import pathlib
 import sys
 
 import learn
@@ -39,8 +41,35 @@ def terminal_approver(auto_yes: bool):
     return approve
 
 
+def install_avatar(source: str) -> str:
+    """Copy any image into place as FunkBot's face. Windows paths work as given."""
+    import shutil
+
+    from config import ROOT
+
+    src = pathlib.Path(source.strip().strip('"').strip("'")).expanduser()
+    if not src.is_file():
+        return f"{R}no such file: {src}{X}"
+    if src.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+        return f"{R}not an image: {src.suffix}{X}"
+
+    dest = ROOT / "web" / "funkbot.png"
+    shutil.copyfile(src, dest)
+    kb = dest.stat().st_size // 1024
+    return (f"{G}avatar installed{X} — {src.name} ({kb} KB) → {dest}\n"
+            f"{D}reload the UI; open web/avatar-demo.html if the crop needs tuning{X}")
+
+
 def main() -> None:
     args = sys.argv[1:]
+
+    if "--avatar" in args:
+        idx = args.index("--avatar")
+        if idx + 1 >= len(args):
+            print(f"{R}usage: python cli.py --avatar <path-to-image>{X}")
+            return
+        print(install_avatar(args[idx + 1]))
+        return
 
     if "--status" in args:
         print(llm.health())
