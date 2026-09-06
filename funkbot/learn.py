@@ -20,11 +20,13 @@ commit as any other self-modification, so a bad lesson is revertible.
 from __future__ import annotations
 
 import json
+import re
 
+import llm
 import memory
 import selfmod
 import skills
-from config import MAX_LEARN_DEPTH, MODEL
+from config import MAX_LEARN_DEPTH
 
 
 REFLECT_SYSTEM = """You are FunkBot's learning loop, reviewing a transcript of your own run.
@@ -65,24 +67,13 @@ Return ONLY JSON:
 - Empty everything is a valid answer. Do not invent lessons here; only reorganize."""
 
 
-def _client():
-    from anthropic import Anthropic
-    return Anthropic()
-
-
 def _ask_json(system: str, user: str, effort: str = "high") -> dict:
-    client = _client()
-    with client.messages.stream(
-        model=MODEL,
-        max_tokens=16000,
-        system=system,
-        thinking={"type": "adaptive"},
-        output_config={"effort": effort},
-        messages=[{"role": "user", "content": user}],
-    ) as stream:
-        msg = stream.get_final_message()
-
-    text = "".join(b.text for b in msg.content if b.type == "text").strip()
+    """Ask the local model for JSON and parse it out of whatever it wraps it in."""
+    reply = llm.chat([{"role": "user", "content": user}], system=system,
+                     effort=effort, max_tokens=8192)
+    text = reply.text.strip()
+    if "```" in text:                     # local models love fencing their JSON
+        text = re.sub(r"```(?:json)?\s*(.*?)```", r"\1", text, flags=re.S)
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end == -1:
         return {}

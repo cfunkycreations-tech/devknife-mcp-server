@@ -1,5 +1,8 @@
 {
-  "devknife": {
-    "url": "https://devknife-mcp.onrender.com/mcp/sse"
+  "_comment": "MCP servers FunkBot connects to at startup. Local stdio servers keep everything offline; a url entry reaches the network, so only add one deliberately. A server that fails to start is reported and skipped.",
+
+  "filesystem": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home"]
   }
 }

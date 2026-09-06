@@ -1,7 +1,17 @@
-anthropic>=1.0.0
+# FunkBot core. The model backend needs no library at all — llm.py talks to
+# your local OpenAI-compatible server over stdlib urllib.
 fastapi>=0.115
 uvicorn[standard]>=0.32
 python-multipart>=0.0.9
+
+# MCP client + server. Drop it and FunkBot still runs, minus MCP.
 mcp>=1.2.0
-# optional — local dictation without sending audio anywhere
-faster-whisper>=1.0.0
+
+# Test suite (also what a self-edit must pass before it commits).
+pytest>=8.0
+
+# --- optional -------------------------------------------------------------
+# Local dictation, no audio leaves the machine:
+#   pip install faster-whisper
+# Cloud backend (FUNKBOT_BACKEND=anthropic), off by default:
+#   pip install anthropic

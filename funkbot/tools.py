@@ -13,6 +13,8 @@ from typing import Any, Callable
 import memory
 import selfmod
 import skills
+import subagents
+import verify
 
 REGISTRY: dict[str, dict] = {}
 
@@ -121,6 +123,57 @@ def load_skill(name: str) -> str:
          body={"type": "string", "description": "markdown instructions"}))
 def write_skill(name: str, description: str, body: str) -> str:
     return skills.write_skill(name, description, body)
+
+
+# --------------------------------------------------------------------- subagents
+
+@tool("spawn_agent", "Delegate one self-contained task to a subagent with its own "
+      "context window. Presets: researcher (investigate/read), coder (implement), "
+      "critic (review). Use this instead of reading twenty files yourself.",
+      _s(task={"type": "string"},
+         preset={"type": "string", "enum": ["researcher", "coder", "critic"],
+                 "_req": False},
+         context={"type": "string", "_req": False}))
+def spawn_agent(task: str, preset: str = "researcher", context: str = "") -> str:
+    return subagents.spawn_agent(task, preset, context)
+
+
+@tool("spawn_swarm", "Run several subagents in parallel on independent pieces of a "
+      "job. tasks_json is a JSON array of task strings.",
+      _s(tasks_json={"type": "string"},
+         preset={"type": "string", "_req": False}))
+def spawn_swarm(tasks_json: str, preset: str = "researcher") -> str:
+    return subagents.spawn_swarm(tasks_json, preset)
+
+
+# --------------------------------------------------------------------- health / verified edits
+
+@tool("self_check", "Run your own check suite — syntax, imports, and tests. Use "
+      "before and after touching your own code.", _s())
+def self_check() -> str:
+    return verify.health()
+
+
+@tool("verified_self_edit", "Modify your own source safely: applies the change, "
+      "runs the full check suite, commits if green, and rolls the whole edit back "
+      "if anything breaks. Use this for any real change to yourself.",
+      _s(description={"type": "string", "description": "what this change does"},
+         action={"type": "string",
+                 "enum": ["patch", "write", "add_tool"]},
+         path={"type": "string", "description": "file, or tool name for add_tool"},
+         find={"type": "string", "_req": False},
+         replace={"type": "string", "description": "new text / full source",
+                  "_req": False}))
+def verified_self_edit(description: str, action: str, path: str,
+                       find: str = "", replace: str = "") -> str:
+    if action == "patch":
+        return verify.safe_self_edit(description, selfmod.patch_own_code,
+                                     path, find, replace)
+    if action == "write":
+        return verify.safe_self_edit(description, selfmod.write_own_file, path, replace)
+    if action == "add_tool":
+        return verify.safe_self_edit(description, selfmod.add_own_tool, path, replace)
+    return f"unknown action {action!r}"
 
 
 # --------------------------------------------------------------------- self-modification

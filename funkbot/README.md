@@ -1,49 +1,56 @@
 # FunkBot
 
-A full agent runtime: tools, skills, MCP (client *and* server), persistent memory,
-voice dictation, a web UI, and recursive self-improvement — it rewrites its own
-code and learns from its own learning.
+An offline agent runtime. Runs Qwen on your own hardware — nothing leaves the
+machine, no API key, no cloud, no filter but your own. Tools, skills, MCP,
+subagents, persistent memory, voice in and out, a permission gate, and recursive
+self-improvement: it rewrites its own code and learns from its own learning.
 
 ```bash
+ollama serve &
+ollama pull qwen3:32b
+
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
-python server.py          # http://localhost:8800
-python cli.py             # or terminal
-python mcp_client.py      # or expose FunkBot's tools to Claude Desktop over MCP
+python server.py            # http://localhost:8800
+python cli.py               # or the terminal
 ```
 
-## What's in it
+Any OpenAI-compatible server works — Ollama, llama.cpp (`--jinja` for tools),
+LM Studio, vLLM, KoboldCpp. Point `FUNKBOT_BASE_URL` at it and go.
+
+## Modules
 
 | File | What it does |
 |---|---|
-| `agent.py` | The loop. Streaming, adaptive thinking, parallel tool calls, prompt caching, server-side compaction for long runs. |
-| `tools.py` | 20 built-in tools: bash, file read/write/edit, http, memory, skills, and the 10 self-modification tools. |
-| `skills.py` | Markdown playbooks with progressive disclosure — only name+description sit in the prompt; the body loads on demand. FunkBot can `write_skill` new ones for itself. |
-| `mcp_client.py` | Connects every server in `mcp_servers.json` (stdio or SSE) and surfaces their tools as `mcp__<server>__<tool>`. Also runs FunkBot *as* an MCP server. |
-| `memory.py` | SQLite + FTS5. Facts, lessons, full transcripts, tool-run history. Survives restarts; injected into every system prompt. |
-| `learn.py` | The recursive learning engine (below). |
-| `selfmod.py` | Read/patch/extend/reload/commit its own source, with path confinement, backups, AST syntax gate, and rollback. |
-| `voice.py` | Dictation. Local faster-whisper, or the browser's Web Speech API. Every dictation saved to disk *and* memory. |
-| `server.py` + `web/` | FastAPI + a dark chat UI: SSE streaming, live thinking, tool trace, mic button, memory inspector. |
+| `llm.py` | The backend. Stdlib-only streaming client for `/v1/chat/completions`, Qwen `<think>` parsing, tool-call assembly. Zero dependencies, zero egress. |
+| `agent.py` | The loop: streaming, parallel tools, permission gate, hooks, context accounting, self-compaction, session resume. |
+| `tools.py` | 24 tools — bash, file r/w/edit, http, memory, skills, subagents, verified self-edit, and 10 self-modification primitives. |
+| `safety.py` | Permission policy. Every call is allow / ask / deny before it runs. |
+| `hooks.py` | Eight lifecycle events, Python or shell handlers. Block a tool, rewrite its args, redact its output. |
+| `subagents.py` | Fan work out to parallel workers with their own context. Presets: researcher, coder, critic. |
+| `skills.py` | Markdown playbooks, progressive disclosure. FunkBot writes new ones for itself. |
+| `mcp_client.py` | Connects every server in `mcp_servers.json`; also runs FunkBot *as* an MCP server. |
+| `memory.py` | SQLite + FTS5: facts, lessons, transcripts, tool history. |
+| `learn.py` | The recursive learning engine. |
+| `verify.py` | Runs the check suite after any self-edit and rolls it back if it broke. |
+| `usage.py` | Token and context telemetry (local runs are free; cloud is priced). |
+| `voice.py` | Dictation via local faster-whisper or the browser. |
+| `server.py` + `web/` | FastAPI + the HUD: live thinking, tool trace, permission prompts, telemetry, mic, TTS. |
+| `tests/` | 33 tests, no network needed — including a stub model server that exercises the whole agent loop. |
 
 ## Recursive learning
 
 Three loops, each feeding the next:
 
-1. **`reflect(session)`** — after every conversation, FunkBot reads its own
-   transcript and tool log, then extracts durable facts, actionable lessons, and —
-   when a procedure has recurred — writes itself a new skill or a new tool.
-2. **`consolidate(depth)`** — the recursive step. FunkBot reflects on *its own
-   lessons*: merging duplicates, retiring what's been contradicted, and promoting
-   clusters of related lessons into a single skill. Its output re-enters as input,
-   recursing until nothing changes or `FUNKBOT_LEARN_DEPTH` (default 3) is hit.
+1. **`reflect(session)`** — after every conversation FunkBot reads its own
+   transcript and tool log, extracts durable facts and actionable lessons, and
+   when a procedure recurs, writes itself a new skill or tool.
+2. **`consolidate(depth)`** — the recursive step. It reflects on *its own
+   lessons*: merging duplicates, retiring what newer lessons contradict,
+   promoting clusters into skills. Output re-enters as input until nothing
+   changes or `FUNKBOT_LEARN_DEPTH` (default 3) is hit.
 3. **`score_outcome(good)`** — reinforcement. Lessons live during a good run gain
    score, during a bad run lose it. Score orders the system prompt; a lesson that
    keeps losing retires itself.
-
-Every artifact learning produces — lesson, skill, tool — goes through the same
-syntax gate, backup, and git commit as any other self-edit. A bad lesson is one
-`git revert` away.
 
 ```
 conversation ──▶ reflect ──▶ lessons ──┐
@@ -54,99 +61,153 @@ conversation ──▶ reflect ──▶ lessons ──┐
                     └──▶ system prompt ─┘
 ```
 
-## The avatar
+## Self-modification that can't brick itself
 
-`web/avatar.js` + `web/avatar.css` — a pure SVG/CSS cyborg icon that animates on
-every question. No libraries, no image files, scales from 44px to any size.
-
-```js
-import { FunkAvatar } from './avatar.js';
-const av = new FunkAvatar(document.getElementById('avatar'));
-av.state = 'thinking';   // idle | listening | thinking | tool | speaking
-av.pulse();              // one-shot flare
+```
+verified_self_edit → snapshot → apply → compileall → imports → pytest
+                                            │
+                              green ────────┴──────── red
+                                │                      │
+                          git commit           restore every file,
+                                               report what failed
 ```
 
-| State | What it does |
-|---|---|
-| `idle` | slow ring drift, eye breathing, label STANDBY |
-| `listening` | goes red, fast ring, bars ride the mic |
-| `thinking` | rings accelerate, eye charges, scan sweep across the face, green halo |
-| `tool` | purple takeover, stepped eye flicker, fast bars |
-| `speaking` | bars carry the cadence, eye settles |
+`verify.guard()` snapshots every `.py` before the edit and restores them all if
+the check suite goes red — including deleting files the edit created. FunkBot
+cannot leave itself broken, which is what makes unattended self-improvement safe.
+`make check` runs the same gate by hand.
 
-The chat UI drives it automatically: `pulse()` + `thinking` when you send, `tool`
-on each tool call, `speaking` as text streams, `idle` when done, `listening` while
-the mic is open. `prefers-reduced-motion` stops the motion but keeps the color and
-label changes. Open `web/avatar-demo.html` to see every state side by side.
+## Permissions
 
-### Using your own picture
-
-Three ways, all equivalent — the ring shows the photo and hides the drawn face:
-
-1. **Drag it onto the avatar** in the running chat UI. It posts to `/api/avatar`,
-   saves as `web/funkbot.png`, and swaps in immediately.
-2. **Copy the file** to `funkbot/web/funkbot.png` yourself.
-3. **Point at any URL:** `new FunkAvatar(el, { src: '/static/me.jpg' })`.
-
-Source images are usually wide shots, not square headshots, so framing is explicit:
-
-```js
-new FunkAvatar(el, {
-  src: 'funkbot.png',
-  frame: { zoom: 2.6, x: 52, y: 27,     // zoom 1 = whole image; x/y = focal point %
-           eye: { x: 121, y: 93 } },    // optional: park the glowing eye on theirs
-});
-```
-
-`web/avatar-demo.html` has sliders for zoom/x/y and a file picker — load your
-image, drag until the head sits in the ring, and it prints the exact `frame`
-object to paste. The defaults are already tuned for a wide banner with the face
-just left of center, upper third.
-
-## The mic button
-
-Click to toggle. If the browser has the Web Speech API it transcribes live into
-the input box; otherwise it records audio and posts it to `/api/transcribe`, which
-runs faster-whisper locally — audio never leaves the machine either way. Both
-paths save the dictation to `data/dictations/` and to memory, so *"what did I
-dictate Tuesday"* is answerable.
-
-## Config
-
-All env vars, all optional: `FUNKBOT_MODEL` (default `claude-opus-5`),
-`FUNKBOT_EFFORT`, `FUNKBOT_MAX_TOKENS`, `FUNKBOT_MAX_TURNS`, `FUNKBOT_DATA`,
-`FUNKBOT_SKILLS`, `FUNKBOT_MCP_CONFIG`, `FUNKBOT_AUTOLEARN`, `FUNKBOT_LEARN_DEPTH`,
-`FUNKBOT_IDENTITY`.
-
-## Adding an MCP server
+Every tool call is classified before it executes. Deny always wins; between allow
+and ask the more specific pattern wins, so a blanket `bash:*` ask still lets
+`bash:git status*` through.
 
 ```json
 {
-  "filesystem": {"command": "npx",
-                 "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/me"]},
-  "devknife":   {"url": "https://devknife-mcp.onrender.com/mcp/sse"}
+  "deny":  ["bash:*rm -rf /*", "read_file:*/.ssh/id_*"],
+  "ask":   ["bash:*", "write_file:*"],
+  "allow": ["bash:git *", "read_file:*", "spawn_agent:*"]
 }
 ```
 
-A server that fails to start is reported and skipped — it never takes the bot down.
+Put that in `policy.json`. Destructive shell patterns (`rm -rf /`, `mkfs`, fork
+bombs, `curl | sh`) are hard-blocked regardless — that's about protecting your
+disk, not policing what you ask. In the web UI an "ask" pops a prompt; in the CLI
+it prompts the terminal; unattended (`FUNKBOT_UNATTENDED=deny`) it refuses, so a
+headless bot can't quietly escalate. `--yes` auto-approves when you want it to
+just go.
 
-## Things to type at FunkBot
+## Hooks
+
+```python
+from hooks import on
+
+@on("pre_tool")
+def no_pushes_after_midnight(ctx):
+    if ctx["tool"] == "bash" and "git push" in ctx["args"].get("command", ""):
+        return {"block": "not at this hour"}
+
+@on("post_tool")
+def redact(ctx):
+    return {"result": ctx["result"].replace(os.environ["SECRET"], "***")}
+```
+
+Events: `session_start`, `pre_turn`, `pre_tool`, `post_tool`, `post_turn`,
+`session_end`, `self_modified`, `lesson_learned`. Executables in
+`hooks.d/<event>/` work too — JSON on stdin, JSON on stdout.
+
+## Subagents
+
+```
+spawn_agent("find every place we parse dates", preset="researcher")
+spawn_swarm('["audit auth", "audit uploads", "audit the cron jobs"]', preset="critic")
+```
+
+Each worker gets its own context window and a restricted tool set, and returns
+only its conclusion — so a twenty-file investigation costs the main thread one
+paragraph instead of twenty files.
+
+## The avatar
+
+`web/avatar.js` + `web/avatar.css` — pure SVG/CSS, no libraries, no image files,
+44px to any size. It animates on every question:
+
+| State | What it does |
+|---|---|
+| `idle` | slow ring drift, eye breathing |
+| `listening` | goes red, fast ring, bars ride the mic |
+| `thinking` | rings accelerate, eye charges, scan sweep, green halo |
+| `tool` | purple takeover, stepped flicker |
+| `speaking` | bars carry the cadence |
+
+Drag any image onto it to make it FunkBot's face (or drop a file at
+`web/funkbot.png`). Wide shots crop correctly — framing is explicit:
+
+```js
+new FunkAvatar(el, { src: 'funkbot.png', frame: { zoom: 2.6, x: 52, y: 27 } });
+```
+
+`web/avatar-demo.html` has sliders that print the exact frame values to paste.
+
+## Voice
+
+**In:** the mic button uses the browser's Web Speech API when available, else
+records audio and transcribes it with local faster-whisper. Audio never leaves
+the machine either way, and every dictation is saved to `data/dictations/` *and*
+to memory — so "what did I dictate Tuesday" is answerable.
+
+**Out:** the VOICE button speaks replies aloud through the browser.
+
+## Config
+
+Every setting is an env var, all optional:
+
+| Var | Default | |
+|---|---|---|
+| `FUNKBOT_MODEL` | `qwen3:32b` | any local model |
+| `FUNKBOT_BASE_URL` | `http://localhost:11434/v1` | Ollama, llama.cpp, LM Studio, vLLM |
+| `FUNKBOT_BACKEND` | `local` | `anthropic` to opt into cloud |
+| `FUNKBOT_NUM_CTX` | `32768` | context window |
+| `FUNKBOT_TEMPERATURE` | `0.7` | |
+| `FUNKBOT_UNATTENDED` | `deny` | what "ask" means with nobody watching |
+| `FUNKBOT_AUTOLEARN` | `1` | reflect after every session |
+| `FUNKBOT_LEARN_DEPTH` | `3` | recursion cap on consolidation |
+| `FUNKBOT_WORKER_MODEL` | same as main | subagent model |
+| `FUNKBOT_IDENTITY` | — | rewrite its personality |
+
+## Commands
+
+```
+make run      web UI            make test     the 33 tests
+make cli      terminal          make check    full self-verification
+make model    pull the model    make learn    force a learning pass
+make mcp      serve FunkBot's tools to other agents over MCP
+
+python cli.py --sessions          list past sessions
+python cli.py --resume <id>       continue one
+python cli.py --status            model, health, totals
+python cli.py -p "one shot"       single prompt
+python cli.py --yes               auto-approve everything
+```
+
+`Dockerfile` and `funkbot.service` are included; the service unit runs with
+`ProtectSystem=full` and unattended-deny since the thing has shell access.
+
+## Things to type at it
 
 ```
 show me your own source files
-add yourself a tool that checks my calendar
-that took three tries — record what you should have done instead
+add yourself a tool that reads my clipboard, verify it, and commit
+spawn three critics on the auth code and merge their findings
+that took you three tries — record what you should have done instead
 consolidate your lessons and tell me what you merged
-give yourself a --verbose flag that logs every tool call, then restart
 what have you learned about me
 ```
 
-## Safety rails
+## Rails
 
-- Self-edits confined to FunkBot's own directory; path escapes raise.
-- `.bak.<timestamp>` before every write; `rollback()` restores the newest.
-- `ast.parse` gate — broken Python is rejected, never written.
-- Per-change git commits; learning depth capped; failing lessons auto-retire.
-
-Worth adding on your side: run your test suite after each self-edit and auto-rollback
-on failure, and put `restart_self` behind an owner check.
+Self-edits confined to FunkBot's own directory; `.bak` before every write;
+AST gate rejects broken Python; the full check suite gates every verified edit
+with automatic rollback; per-change git commits; permission gate on every tool;
+learning depth capped; failing lessons auto-retire.
