@@ -25,8 +25,16 @@ DICTATIONS_DIR.mkdir(parents=True, exist_ok=True)
 # "local" (default, offline) or "anthropic" (opt-in, requires network + key)
 BACKEND = os.getenv("FUNKBOT_BACKEND", "local")
 
-MODEL = os.getenv("FUNKBOT_MODEL", "qwen3:32b")
-LLM_BASE_URL = os.getenv("FUNKBOT_BASE_URL", "http://localhost:11434/v1")
+# Both default to "auto": FunkBot scans the usual local ports for an
+# OpenAI-compatible server and picks a model it actually serves. Set them only
+# to override that.
+MODEL = os.getenv("FUNKBOT_MODEL", "auto")
+LLM_BASE_URL = os.getenv("FUNKBOT_BASE_URL", "auto")
+
+# Ports checked when LLM_BASE_URL is "auto", in order.
+# LM Studio / Bionic, Ollama, llama.cpp, vLLM, KoboldCpp, text-gen-webui, Jan.
+DISCOVER_PORTS = [int(p) for p in os.getenv(
+    "FUNKBOT_DISCOVER_PORTS", "1234,11434,8080,8000,5001,5000,1337").split(",")]
 LLM_API_KEY = os.getenv("FUNKBOT_API_KEY", "")        # local servers need none
 NUM_CTX = int(os.getenv("FUNKBOT_NUM_CTX", "32768"))
 TEMPERATURE = float(os.getenv("FUNKBOT_TEMPERATURE", "0.7"))

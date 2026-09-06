@@ -51,7 +51,7 @@ class FunkBot:
         self.session_id = session_id or memory.new_session()
         self.messages: list[dict] = []
         self.gate = safety.Gate(approver)
-        self.usage = usage_mod.Usage(model=MODEL)
+        self.usage = usage_mod.Usage(model=llm.resolved_model())
         self.mcp_status = mcp_client.connect() if connect_mcp else "mcp disabled"
         self.backend_status = llm.health()
         self.last_blocked: list[str] = []
@@ -228,7 +228,7 @@ class FunkBot:
         return {
             "session": self.session_id,
             "backend": self.backend_status,
-            "model": MODEL,
+            "model": llm.resolved_model(),
             "mcp": self.mcp_status,
             "tools": len(self.tool_specs()),
             "skills": len(skills.catalog()),

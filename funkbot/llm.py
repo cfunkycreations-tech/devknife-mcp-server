@@ -26,11 +26,19 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
-from config import (BACKEND, LLM_BASE_URL, LLM_API_KEY, MAX_TOKENS, MODEL,
-                    NUM_CTX, TEMPERATURE)
+from config import (BACKEND, DISCOVER_PORTS, LLM_BASE_URL, LLM_API_KEY,
+                    MAX_TOKENS, MODEL, NUM_CTX, TEMPERATURE)
 
 THINK_RE = re.compile(r"<think>(.*?)</think>", re.S)
 OPEN_THINK_RE = re.compile(r"<think>(.*)$", re.S)
+
+# Resolved once, then reused: (base_url, model).
+_RESOLVED: dict[str, str] = {}
+
+# A model whose name says it can't chat.
+NOT_CHAT = ("embed", "embedding", "rerank", "whisper", "clip", "tts", "bge-", "nomic")
+# Preferred when several will do — tool use and instruction following first.
+PREFERRED = ("coder", "instruct", "qwen", "abliterated", "uncensored", "chat")
 
 
 @dataclass
@@ -46,10 +54,69 @@ class LocalError(RuntimeError):
     """The local model server is unreachable or refused the request."""
 
 
+# --------------------------------------------------------------------- discovery
+
+def _list_models(base_url: str, timeout: float = 2.0) -> list[str]:
+    """Model ids a server advertises, or [] if it isn't one."""
+    req = urllib.request.Request(base_url.rstrip("/") + "/models")
+    if LLM_API_KEY:
+        req.add_header("Authorization", f"Bearer {LLM_API_KEY}")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return [m["id"] for m in json.load(r).get("data", [])]
+    except Exception:
+        return []
+
+
+def _pick_model(available: list[str]) -> str:
+    """Choose a chat-capable model, favouring instruction-tuned and coder builds."""
+    usable = [m for m in available
+              if not any(bad in m.lower() for bad in NOT_CHAT)] or available
+    return max(usable, key=lambda m: (
+        sum(word in m.lower() for word in PREFERRED), len(m)), default="")
+
+
+def resolve() -> tuple[str, str]:
+    """Find the local server and the model to talk to. Cached after the first hit.
+
+    Nothing here needs configuring: with FUNKBOT_BASE_URL unset, the usual local
+    ports are probed; with FUNKBOT_MODEL unset — or set to something the server
+    doesn't actually serve — a served model is chosen instead of failing.
+    """
+    # Keyed on the configuration so a changed setting re-resolves instead of
+    # serving a stale endpoint.
+    key = f"{LLM_BASE_URL}|{MODEL}"
+    if _RESOLVED.get("key") == key:
+        return _RESOLVED["base_url"], _RESOLVED["model"]
+    _RESOLVED.clear()
+
+    candidates = ([LLM_BASE_URL] if LLM_BASE_URL != "auto" else
+                  [f"http://localhost:{p}/v1" for p in DISCOVER_PORTS])
+
+    for base in candidates:
+        models = _list_models(base)
+        if not models:
+            continue
+        if MODEL != "auto" and MODEL in models:
+            chosen = MODEL
+        elif MODEL != "auto" and any(MODEL.split(":")[0] in m for m in models):
+            chosen = next(m for m in models if MODEL.split(":")[0] in m)
+        else:
+            chosen = _pick_model(models)
+        if chosen:
+            _RESOLVED.update(key=key, base_url=base, model=chosen)
+            return base, chosen
+
+    # Nothing answered — keep the configured values so the error names them.
+    fallback = LLM_BASE_URL if LLM_BASE_URL != "auto" else \
+        f"http://localhost:{DISCOVER_PORTS[0]}/v1"
+    return fallback, (MODEL if MODEL != "auto" else "")
+
+
 # --------------------------------------------------------------------- helpers
 
 def _post(path: str, payload: dict, stream: bool):
-    url = LLM_BASE_URL.rstrip("/") + path
+    url = resolve()[0].rstrip("/") + path
     body = json.dumps(payload).encode()
     headers = {"Content-Type": "application/json"}
     if LLM_API_KEY:
@@ -58,9 +125,12 @@ def _post(path: str, payload: dict, stream: bool):
     try:
         return urllib.request.urlopen(req, timeout=None if stream else 600)
     except urllib.error.URLError as e:
+        ports = ", ".join(str(p) for p in DISCOVER_PORTS)
         raise LocalError(
-            f"cannot reach the local model at {url} ({e}). "
-            f"Start it first — e.g. `ollama serve` then `ollama run {MODEL}`."
+            f"no local model server answered at {url} ({e}).\n"
+            f"Start yours (LM Studio / Bionic, Ollama, llama.cpp, …) — FunkBot "
+            f"checks ports {ports} automatically, or set FUNKBOT_BASE_URL to its "
+            f"address ending in /v1."
         ) from e
 
 
@@ -102,7 +172,7 @@ def _chat_local(messages: list[dict], tools: list[dict], system: str,
                 on_delta: Callable[[str, str], None] | None,
                 effort: str, max_tokens: int) -> Reply:
     payload = {
-        "model": MODEL,
+        "model": resolve()[1],
         "messages": ([{"role": "system", "content": system}] if system else []) + messages,
         "max_tokens": max_tokens,
         "temperature": TEMPERATURE,
@@ -269,17 +339,21 @@ def chat(messages: list[dict], tools: list[dict] | None = None, system: str = ""
 
 
 def health() -> str:
-    """Is the local model up, and which ones are loaded?"""
+    """What FunkBot found: the server it discovered and the model it will use."""
     if BACKEND == "anthropic":
         return "backend: anthropic (cloud)"
-    try:
-        req = urllib.request.Request(LLM_BASE_URL.rstrip("/") + "/models")
-        if LLM_API_KEY:
-            req.add_header("Authorization", f"Bearer {LLM_API_KEY}")
-        with urllib.request.urlopen(req, timeout=5) as r:
-            names = [m["id"] for m in json.load(r).get("data", [])]
-        loaded = "loaded: " + ", ".join(names[:8]) if names else "no models loaded"
-        mark = "✓" if any(MODEL.split(":")[0] in n for n in names) else "✗ not found"
-        return f"offline · {LLM_BASE_URL} · {MODEL} {mark} · {loaded}"
-    except Exception as e:
-        return f"offline · {LLM_BASE_URL} · UNREACHABLE ({type(e).__name__})"
+
+    base, model = resolve()
+    names = _list_models(base, timeout=5)
+    if not names:
+        ports = ", ".join(str(p) for p in DISCOVER_PORTS)
+        return (f"offline · UNREACHABLE — nothing answered on ports {ports}. "
+                f"Start your model server, or set FUNKBOT_BASE_URL.")
+    others = [n for n in names if n != model]
+    tail = f" · also loaded: {', '.join(others[:5])}" if others else ""
+    return f"offline · {base} · using {model}{tail}"
+
+
+def resolved_model() -> str:
+    """The model actually in use — what the HUD and the CLI report."""
+    return resolve()[1] or (MODEL if MODEL != "auto" else "none found")

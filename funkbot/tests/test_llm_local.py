@@ -133,7 +133,8 @@ def test_unreachable_server_raises_a_useful_error():
     try:
         with pytest.raises(llm.LocalError) as e:
             llm.chat([{"role": "user", "content": "x"}])
-        assert "ollama serve" in str(e.value)
+        assert "no local model server answered" in str(e.value)
+        assert "FUNKBOT_BASE_URL" in str(e.value)
     finally:
         llm.LLM_BASE_URL = saved
 

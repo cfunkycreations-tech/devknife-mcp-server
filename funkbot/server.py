@@ -30,7 +30,6 @@ import usage as usage_mod
 import verify
 import voice
 from agent import FunkBot
-from config import MODEL
 
 HERE = pathlib.Path(__file__).resolve().parent
 app = FastAPI(title="FunkBot")
@@ -116,7 +115,7 @@ def status(session_id: str | None = None) -> JSONResponse:
     b = BOTS.get(session_id) if session_id else None
     return JSONResponse({
         "backend": llm.health(),
-        "model": MODEL,
+        "model": llm.resolved_model(),
         "health": verify.health().splitlines()[0],
         "totals": usage_mod.totals(),
         # Counts come from the process, not the session, so the HUD shows them

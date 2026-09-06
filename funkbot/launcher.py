@@ -66,10 +66,10 @@ def ensure_model_server(base_url: str) -> bool:
 
     ollama = shutil.which("ollama")
     if not ollama:
-        print(f"{R}✗ no model server at {base_url}{X}")
-        print(f"{D}  Install Ollama from https://ollama.com, then:{X}")
-        print(f"{D}    ollama pull {os.getenv('FUNKBOT_MODEL', 'qwen3:32b')}{X}")
-        print(f"{D}  Or point FUNKBOT_BASE_URL at llama.cpp / LM Studio / vLLM.{X}")
+        print(f"{R}✗ no model server found{X}")
+        print(f"{D}  Start yours — Bionic, LM Studio, llama.cpp, Ollama, vLLM.{X}")
+        print(f"{D}  FunkBot checks the usual ports itself; set FUNKBOT_BASE_URL{X}")
+        print(f"{D}  only if yours listens somewhere unusual.{X}")
         return False
 
     print(f"{D}starting ollama…{X}")
@@ -89,11 +89,10 @@ def ensure_model_server(base_url: str) -> bool:
 def main() -> int:
     print(BANNER)
 
-    import config          # noqa: E402  (after sys.path/env setup)
-    import llm             # noqa: E402
+    import llm             # noqa: E402  (after sys.path/env setup)
 
     if "--cli" in sys.argv:
-        ensure_model_server(config.LLM_BASE_URL)
+        ensure_model_server(llm.resolve()[0])
         import cli
         cli.main()
         return 0
@@ -107,9 +106,10 @@ def main() -> int:
             webbrowser.open(f"http://{host}:{port}")
         return 0
 
-    model_ok = ensure_model_server(config.LLM_BASE_URL)
+    # resolve() discovers the server; 'auto' never reaches the probe.
+    model_ok = ensure_model_server(llm.resolve()[0])
     print(f"{D}{llm.health()}{X}")
-    print(f"{D}model: {config.MODEL} · data: {os.environ['FUNKBOT_DATA']}{X}")
+    print(f"{D}model: {llm.resolved_model()} · data: {os.environ['FUNKBOT_DATA']}{X}")
     if not model_ok:
         print(f"{P}starting anyway — the UI will show MODEL DOWN until it's up{X}")
 
