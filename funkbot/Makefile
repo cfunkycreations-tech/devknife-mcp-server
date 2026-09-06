@@ -1,4 +1,4 @@
-.PHONY: install run cli test check learn model docker clean
+.PHONY: install run cli test check learn model docker clean exe icon launch
 
 MODEL ?= qwen3:32b
 
@@ -30,5 +30,18 @@ docker:
 	docker build -t funkbot . && docker run --rm -it --network host \
 		-v funkbot-data:/app/data funkbot
 
+launch:                     ## the double-click path: model up, server up, browser open
+	python launcher.py
+
+icon:                       ## regenerate FunkBot.ico / FunkBot.png
+	python make_icon.py
+
+exe:                        ## build FunkBot.exe (Windows only — no cross-compiling)
+	python -m pip install --quiet pyinstaller
+	python make_icon.py
+	python -m pytest -q tests
+	python -m PyInstaller --noconfirm --clean FunkBot.spec
+	@echo "built: dist/FunkBot"
+
 clean:
-	rm -rf __pycache__ .pytest_cache **/__pycache__ *.bak.*
+	rm -rf __pycache__ .pytest_cache **/__pycache__ *.bak.* build dist

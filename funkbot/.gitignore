@@ -1,6 +1,13 @@
 data/
 __pycache__/
+.pytest_cache/
 *.bak.*
 tools_generated.py
 
+# the avatar you install is yours, not the repo's
 web/funkbot.png
+
+# exe build output
+build/
+dist/
+*.egg-info/
