@@ -141,8 +141,14 @@ paragraph instead of twenty files.
 | `tool` | purple takeover, stepped flicker |
 | `speaking` | bars carry the cadence |
 
-Drag any image onto it to make it FunkBot's face (or drop a file at
-`web/funkbot.png`). Wide shots crop correctly — framing is explicit:
+Three ways to give it your own face:
+
+```bash
+python cli.py --avatar ~/Downloads/funkbot.avatar.png     # any path, quotes ok
+```
+
+…or drag the image onto the avatar in the running UI, or copy it to
+`web/funkbot.png` yourself. Wide shots crop correctly — framing is explicit:
 
 ```js
 new FunkAvatar(el, { src: 'funkbot.png', frame: { zoom: 2.6, x: 52, y: 27 } });
@@ -189,6 +195,7 @@ python cli.py --resume <id>       continue one
 python cli.py --status            model, health, totals
 python cli.py -p "one shot"       single prompt
 python cli.py --yes               auto-approve everything
+python cli.py --avatar <path>     install a portrait into the avatar ring
 ```
 
 `Dockerfile` and `funkbot.service` are included; the service unit runs with
