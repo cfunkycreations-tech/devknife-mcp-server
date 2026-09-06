@@ -1,0 +1,147 @@
+/* FunkBot avatar — green/purple HUD, one animation set per state. */
+
+.fb-avatar {
+  --fb-green: #2bff9e;
+  --fb-green-dim: #148f5c;
+  --fb-purple: #a06cff;
+  --fb-hot: #ff5c5c;
+  --fb-accent: var(--fb-green);
+
+  position: relative;
+  width: var(--fb-size, 92px);
+  height: var(--fb-size, 92px);
+  flex: none;
+  line-height: 0;
+}
+
+.fb-svg { width: 100%; height: 100%; overflow: visible; }
+
+/* ---------------------------------------------------------------- rings */
+
+.fb-ring       { stroke: var(--fb-accent); opacity: .85; transform-origin: 100px 100px; }
+.fb-ring-still { stroke: var(--fb-accent); opacity: .18; fill: none; }
+.fb-ring-a { animation: fb-spin 14s linear infinite; }
+.fb-ring-b { animation: fb-spin 22s linear infinite reverse; opacity: .45; }
+.fb-ring-c { stroke: var(--fb-purple); animation: fb-spin 6s linear infinite; }
+
+@keyframes fb-spin { to { transform: rotate(360deg); } }
+
+/* ---------------------------------------------------------------- face */
+
+.fb-well     { fill: #0a0d12; stroke: rgba(43,255,158,.25); stroke-width: 1; }
+.fb-skin     { fill: #4c5f6d; }
+.fb-beard    { fill: #171c23; }
+.fb-beard-hi { stroke: rgba(120,140,160,.35); stroke-width: 2; fill: none;
+               stroke-linecap: round; }
+.fb-shade    { fill: #05070a; stroke: rgba(43,255,158,.5); stroke-width: 1.2; }
+.fb-shade-hi { stroke: rgba(43,255,158,.55); stroke-width: 1.6; stroke-linecap: round; }
+.fb-chrome   { fill: url(#fb-chrome); }
+.fb-plate    { fill: rgba(255,255,255,.18); }
+.fb-seam     { stroke: rgba(255,255,255,.22); stroke-width: 1.2; fill: none; }
+.fb-vent     { stroke: rgba(20,10,35,.55); stroke-width: 2.4; stroke-linecap: round;
+               fill: none; }
+.fb-hat      { fill: #1b212a; }
+.fb-hat-brim { fill: #12171e; }
+.fb-hat-rim  { stroke: rgba(43,255,158,.4); stroke-width: 1.4; fill: none;
+               stroke-linecap: round; }
+.fb-cable    { stroke: var(--fb-purple); stroke-width: 3.2; fill: none; opacity: .85;
+               stroke-linecap: round; }
+
+/* A real portrait, when present, replaces the drawn face. */
+.fb-avatar.has-photo .fb-face { display: none; }
+
+/* ---------------------------------------------------------------- eye */
+
+.fb-eye-outer { fill: none; stroke: var(--fb-accent); stroke-width: 2; opacity: .9; }
+.fb-eye-core  { fill: #f2fff8; }
+.fb-eye { transform-origin: 121px 93px; animation: fb-breathe 3.6s ease-in-out infinite; }
+
+@keyframes fb-breathe {
+  0%, 100% { opacity: .78; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.07); }
+}
+
+/* ---------------------------------------------------------------- sweep + bars */
+
+.fb-scan { fill: var(--fb-accent); opacity: 0; }
+
+.fb-bars rect { fill: var(--fb-accent); opacity: .28; transform-origin: center bottom; }
+
+/* ---------------------------------------------------------------- states */
+
+/* idle — slow drift, nothing loud */
+.fb-avatar.is-idle .fb-ring-c { animation-duration: 18s; opacity: .5; }
+
+/* listening — hot ring, bars riding the mic */
+.fb-avatar.is-listening { --fb-accent: var(--fb-hot); }
+.fb-avatar.is-listening .fb-ring-a { animation-duration: 5s; }
+.fb-avatar.is-listening .fb-eye    { animation-duration: 1s; }
+.fb-avatar.is-listening .fb-bars rect { opacity: .9; animation: fb-bar .55s ease-in-out infinite; }
+
+/* thinking — the main "asked a question" animation */
+.fb-avatar.is-thinking .fb-ring-a { animation-duration: 2.6s; }
+.fb-avatar.is-thinking .fb-ring-b { animation-duration: 4s; opacity: .8; }
+.fb-avatar.is-thinking .fb-ring-c { animation-duration: 1.1s; stroke-width: 4; }
+.fb-avatar.is-thinking .fb-eye    { animation: fb-charge .9s ease-in-out infinite; }
+.fb-avatar.is-thinking .fb-scan   { animation: fb-sweep 1.5s linear infinite; }
+.fb-avatar.is-thinking .fb-bars rect { opacity: .8; animation: fb-bar .7s ease-in-out infinite; }
+.fb-avatar.is-thinking { animation: fb-halo 1.8s ease-in-out infinite; }
+
+/* tool — purple takeover while a tool runs */
+.fb-avatar.is-tool { --fb-accent: var(--fb-purple); }
+.fb-avatar.is-tool .fb-ring-c { stroke: var(--fb-green); animation-duration: .8s; }
+.fb-avatar.is-tool .fb-eye    { animation: fb-charge .5s steps(2, end) infinite; }
+.fb-avatar.is-tool .fb-bars rect { opacity: .9; animation: fb-bar .3s ease-in-out infinite; }
+
+/* speaking — bars carry the cadence, eye settles */
+.fb-avatar.is-speaking .fb-ring-c { animation-duration: 3s; }
+.fb-avatar.is-speaking .fb-eye    { animation-duration: 1.6s; }
+.fb-avatar.is-speaking .fb-bars rect { opacity: .95; animation: fb-bar .42s ease-in-out infinite; }
+
+/* stagger the bars so they never move as one block */
+.fb-bars rect:nth-child(1) { animation-delay: 0s;    }
+.fb-bars rect:nth-child(2) { animation-delay: .09s;  }
+.fb-bars rect:nth-child(3) { animation-delay: .18s;  }
+.fb-bars rect:nth-child(4) { animation-delay: .27s;  }
+.fb-bars rect:nth-child(5) { animation-delay: .36s;  }
+
+/* one-shot flare */
+.fb-avatar.fb-flare .fb-ring-c { animation: fb-spin .9s linear 1, fb-flare .5s ease-out 1; }
+.fb-avatar.fb-flare { animation: fb-halo .5s ease-out 1; }
+
+@keyframes fb-charge {
+  0%, 100% { opacity: .7;  transform: scale(.94); }
+  45%      { opacity: 1;   transform: scale(1.22); }
+}
+@keyframes fb-sweep {
+  0%   { opacity: 0;   transform: translateY(30px); }
+  15%  { opacity: .28; }
+  85%  { opacity: .28; }
+  100% { opacity: 0;   transform: translateY(180px); }
+}
+@keyframes fb-bar {
+  0%, 100% { transform: scaleY(.35); }
+  50%      { transform: scaleY(2.4); }
+}
+@keyframes fb-halo {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(43,255,158,.25)); }
+  50%      { filter: drop-shadow(0 0 14px rgba(43,255,158,.7)); }
+}
+@keyframes fb-flare {
+  0%   { stroke-width: 10; opacity: 1; }
+  100% { stroke-width: 3;  opacity: .85; }
+}
+
+/* ---------------------------------------------------------------- label */
+
+.fb-label {
+  position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%);
+  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 1.4px; color: var(--fb-accent); white-space: nowrap;
+  text-shadow: 0 0 8px currentColor;
+}
+
+/* respect the OS setting — the icon still changes color and label, just stops moving */
+@media (prefers-reduced-motion: reduce) {
+  .fb-avatar *, .fb-avatar { animation: none !important; }
+}

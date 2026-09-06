@@ -54,6 +54,32 @@ conversation ──▶ reflect ──▶ lessons ──┐
                     └──▶ system prompt ─┘
 ```
 
+## The avatar
+
+`web/avatar.js` + `web/avatar.css` — a pure SVG/CSS cyborg icon that animates on
+every question. No libraries, no image files, scales from 44px to any size.
+
+```js
+import { FunkAvatar } from './avatar.js';
+const av = new FunkAvatar(document.getElementById('avatar'));
+av.state = 'thinking';   // idle | listening | thinking | tool | speaking
+av.pulse();              // one-shot flare
+```
+
+| State | What it does |
+|---|---|
+| `idle` | slow ring drift, eye breathing, label STANDBY |
+| `listening` | goes red, fast ring, bars ride the mic |
+| `thinking` | rings accelerate, eye charges, scan sweep across the face, green halo |
+| `tool` | purple takeover, stepped eye flicker, fast bars |
+| `speaking` | bars carry the cadence, eye settles |
+
+The chat UI drives it automatically: `pulse()` + `thinking` when you send, `tool`
+on each tool call, `speaking` as text streams, `idle` when done, `listening` while
+the mic is open. Drop a portrait at `web/funkbot.png` and it fills the ring in
+place of the drawn face. `prefers-reduced-motion` stops the motion but keeps the
+color and label changes. Open `web/avatar-demo.html` to see every state side by side.
+
 ## The mic button
 
 Click to toggle. If the browser has the Web Speech API it transcribes live into

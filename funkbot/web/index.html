@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FunkBot</title>
+<link rel="stylesheet" href="avatar.css">
 <style>
+  header .fb-avatar { --fb-size: 46px; margin-right: 4px; }
+  header .fb-label { bottom: -13px; font-size: 7.5px; letter-spacing: 1.1px; }
   :root {
     --bg: #0d0f14; --panel: #151922; --line: #232936; --text: #e6e9ef;
     --dim: #8b93a7; --accent: #ffb454; --user: #1d2430; --rec: #ff5c5c;
@@ -60,6 +63,7 @@
 </head>
 <body>
 <header>
+  <div id="avatar"></div>
   <b>FUNKBOT</b>
   <button id="memBtn">memory</button>
   <button id="learnBtn">learn now</button>
@@ -80,7 +84,10 @@
   <h3>Dictations</h3><div id="dicts"></div>
 </aside>
 
-<script>
+<script type="module">
+import { FunkAvatar } from './avatar.js';
+const avatar = new FunkAvatar(document.getElementById('avatar'));
+
 const log = document.getElementById('log');
 const input = document.getElementById('input');
 const status = document.getElementById('status');
@@ -108,6 +115,8 @@ async function send(text) {
   bubble('user', text);
   input.value = '';
   status.textContent = 'thinking…';
+  avatar.pulse();                 // question landed
+  avatar.state = 'thinking';
 
   const res = await fetch('/api/chat', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -131,12 +140,18 @@ async function send(text) {
       else if (ev.type === 'thinking') {
         thinking = thinking || bubble('think');
         thinking.textContent += ev.text;
-      } else if (ev.type === 'tool') { bubble('tool', '· ' + ev.text); reply = null; }
-      else if (ev.type === 'text') {
+      } else if (ev.type === 'tool') {
+        bubble('tool', '· ' + ev.text); reply = null;
+        avatar.state = 'tool'; avatar.pulse();
+      } else if (ev.type === 'text') {
         reply = reply || bubble('');
         reply.textContent += ev.text;
+        avatar.state = 'speaking';
         log.scrollTop = log.scrollHeight;
-      } else if (ev.type === 'done') status.textContent = 'ready';
+      } else if (ev.type === 'done') {
+        status.textContent = 'ready';
+        avatar.state = 'idle';
+      }
     }
   }
 }
@@ -196,9 +211,11 @@ mic.addEventListener('click', async () => {
   mic.classList.toggle('recording', listening);
   if (listening) {
     status.textContent = 'listening…';
+    avatar.state = 'listening';
     if (SR) startBrowserSpeech(); else await startRecording();
   } else {
     status.textContent = 'ready';
+    avatar.state = 'idle';
     if (recognition) { recognition.stop(); recognition = null; }
     if (recorder && recorder.state === 'recording') { recorder.stop(); recorder = null; }
   }
