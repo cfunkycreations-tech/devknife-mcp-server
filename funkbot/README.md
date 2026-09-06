@@ -76,9 +76,32 @@ av.pulse();              // one-shot flare
 
 The chat UI drives it automatically: `pulse()` + `thinking` when you send, `tool`
 on each tool call, `speaking` as text streams, `idle` when done, `listening` while
-the mic is open. Drop a portrait at `web/funkbot.png` and it fills the ring in
-place of the drawn face. `prefers-reduced-motion` stops the motion but keeps the
-color and label changes. Open `web/avatar-demo.html` to see every state side by side.
+the mic is open. `prefers-reduced-motion` stops the motion but keeps the color and
+label changes. Open `web/avatar-demo.html` to see every state side by side.
+
+### Using your own picture
+
+Three ways, all equivalent — the ring shows the photo and hides the drawn face:
+
+1. **Drag it onto the avatar** in the running chat UI. It posts to `/api/avatar`,
+   saves as `web/funkbot.png`, and swaps in immediately.
+2. **Copy the file** to `funkbot/web/funkbot.png` yourself.
+3. **Point at any URL:** `new FunkAvatar(el, { src: '/static/me.jpg' })`.
+
+Source images are usually wide shots, not square headshots, so framing is explicit:
+
+```js
+new FunkAvatar(el, {
+  src: 'funkbot.png',
+  frame: { zoom: 2.6, x: 52, y: 27,     // zoom 1 = whole image; x/y = focal point %
+           eye: { x: 121, y: 93 } },    // optional: park the glowing eye on theirs
+});
+```
+
+`web/avatar-demo.html` has sliders for zoom/x/y and a file picker — load your
+image, drag until the head sits in the ring, and it prints the exact `frame`
+object to paste. The defaults are already tuned for a wide banner with the face
+just left of center, upper third.
 
 ## The mic button
 

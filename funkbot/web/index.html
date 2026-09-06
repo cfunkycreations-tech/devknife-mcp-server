@@ -86,7 +86,27 @@
 
 <script type="module">
 import { FunkAvatar } from './avatar.js';
-const avatar = new FunkAvatar(document.getElementById('avatar'));
+const avatarEl = document.getElementById('avatar');
+const avatar = new FunkAvatar(avatarEl);
+
+/* drop an image on the avatar to make it FunkBot's face */
+avatarEl.title = 'drop an image here to set the avatar';
+avatarEl.addEventListener('dragover', e => {
+  e.preventDefault();
+  avatarEl.classList.add('fb-dropping');
+});
+avatarEl.addEventListener('dragleave', () => avatarEl.classList.remove('fb-dropping'));
+avatarEl.addEventListener('drop', async e => {
+  e.preventDefault();
+  avatarEl.classList.remove('fb-dropping');
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  const fd = new FormData();
+  fd.append('image', file, 'funkbot.png');
+  await fetch('/api/avatar', { method: 'POST', body: fd });
+  avatar.setPhoto('funkbot.png');
+  avatar.pulse();
+});
 
 const log = document.getElementById('log');
 const input = document.getElementById('input');

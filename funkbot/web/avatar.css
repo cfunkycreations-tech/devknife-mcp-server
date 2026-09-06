@@ -49,6 +49,11 @@
 
 /* A real portrait, when present, replaces the drawn face. */
 .fb-avatar.has-photo .fb-face { display: none; }
+.fb-avatar:not(.has-photo) .fb-photo { display: none; }
+
+/* drag-and-drop target feedback */
+.fb-avatar.fb-dropping .fb-well { stroke: var(--fb-green); stroke-width: 3; }
+.fb-avatar.fb-dropping { filter: drop-shadow(0 0 12px rgba(43,255,158,.8)); }
 
 /* ---------------------------------------------------------------- eye */
 

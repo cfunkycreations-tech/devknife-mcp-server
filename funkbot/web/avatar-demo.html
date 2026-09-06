@@ -24,6 +24,13 @@
            padding: 8px 15px; border-radius: 8px; cursor: pointer;
            font: 600 12px ui-monospace, monospace; letter-spacing: .6px; }
   button:hover { border-color: #2bff9e; color: #2bff9e; }
+  .frame-tuner { display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+                 justify-content: center; color: #8b93a7;
+                 font: 11px ui-monospace, monospace; letter-spacing: .5px; }
+  .frame-tuner code { color: #2bff9e; background: #10141b; padding: 6px 10px;
+                      border-radius: 6px; }
+  .frame-tuner input[type=range] { accent-color: #2bff9e; width: 130px;
+                                   vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -42,6 +49,14 @@
     <button data-s="pulse">pulse</button>
   </div>
 
+  <div class="frame-tuner">
+    <label>zoom <input type="range" id="z" min="1" max="6" step=".05" value="2.6"></label>
+    <label>x <input type="range" id="x" min="0" max="100" step="1" value="52"></label>
+    <label>y <input type="range" id="y" min="0" max="100" step="1" value="27"></label>
+    <code id="out">frame: { zoom: 2.6, x: 52, y: 27 }</code>
+    <input type="file" id="pick" accept="image/*">
+  </div>
+
   <div class="row" id="grid"></div>
 
 <script type="module">
@@ -51,6 +66,25 @@ const hero = new FunkAvatar(document.getElementById('hero'));
 document.querySelectorAll('.controls button').forEach(b => {
   b.onclick = () => b.dataset.s === 'pulse' ? hero.pulse() : (hero.state = b.dataset.s);
 });
+
+/* framing tuner — dial the crop, then paste the printed frame into your code */
+const [z, x, y, out, pick] = ['z', 'x', 'y', 'out', 'pick'].map(id =>
+  document.getElementById(id));
+let photoSrc = 'funkbot.png';
+
+function reframe() {
+  const frame = { zoom: +z.value, x: +x.value, y: +y.value };
+  hero.setPhoto(photoSrc, frame);
+  out.textContent = `frame: { zoom: ${frame.zoom}, x: ${frame.x}, y: ${frame.y} }`;
+}
+[z, x, y].forEach(el => el.oninput = reframe);
+pick.onchange = () => {
+  const f = pick.files[0];
+  if (!f) return;
+  URL.revokeObjectURL(photoSrc);
+  photoSrc = URL.createObjectURL(f);
+  reframe();
+};
 
 // every state side by side, plus the sizes it ships at
 const grid = document.getElementById('grid');

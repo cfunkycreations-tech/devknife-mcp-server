@@ -69,6 +69,16 @@ async def save_browser_dictation(request: Request) -> JSONResponse:
     return JSONResponse(voice.save_dictation(body["text"]))
 
 
+@app.post("/api/avatar")
+async def set_avatar(image: UploadFile) -> JSONResponse:
+    """Drop a portrait into the avatar ring. Saved as web/funkbot.png."""
+    raw = await image.read()
+    if len(raw) > 8_000_000:
+        return JSONResponse({"error": "image over 8MB"}, status_code=413)
+    (HERE / "web" / "funkbot.png").write_bytes(raw)
+    return JSONResponse({"ok": True, "bytes": len(raw)})
+
+
 @app.get("/api/dictations")
 def dictations() -> JSONResponse:
     return JSONResponse(voice.list_dictations())

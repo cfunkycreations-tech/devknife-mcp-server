@@ -45,8 +45,8 @@ const SVG = `
   <!-- portrait well -->
   <circle class="fb-well" cx="100" cy="100" r="62"/>
   <g clip-path="url(#fb-clip)">
-    <image class="fb-photo" href="funkbot.png" x="20" y="20" width="160" height="160"
-           preserveAspectRatio="xMidYMin slice"/>
+    <image class="fb-photo" x="38" y="38" width="124" height="124"
+           preserveAspectRatio="xMidYMid slice"/>
 
     <g class="fb-face">
       <!-- flesh-and-beard half (viewer's left) -->
@@ -97,22 +97,54 @@ const SVG = `
   </g>
 </svg>`;
 
+/* Framing for a portrait dropped into the ring. The source is usually a wide
+ * shot, not a square headshot, so these say which part of it fills the circle:
+ * zoom 1 fits the whole frame, higher crops in; x/y are the focal point in
+ * percent (50/50 = dead center). Override per-avatar via setPhoto(). */
+const DEFAULT_FRAME = { zoom: 2.6, x: 52, y: 27 };
+
 export class FunkAvatar {
-  constructor(host, { label = true } = {}) {
+  constructor(host, { label = true, src = 'funkbot.png', frame = {} } = {}) {
     host.classList.add('fb-avatar');
     host.innerHTML = SVG + (label ? '<div class="fb-label">STANDBY</div>' : '');
     this.host = host;
     this.labelEl = host.querySelector('.fb-label');
+    this.imgEl = host.querySelector('.fb-photo');
+    this.frame = { ...DEFAULT_FRAME, ...frame };
 
-    // Hide the <image> slot if no portrait is present.
-    const img = host.querySelector('.fb-photo');
-    const probe = new Image();
-    probe.onerror = () => img.remove();
-    probe.onload = () => host.classList.add('has-photo');
-    probe.src = 'funkbot.png';
-
+    this.setPhoto(src);
     this._state = 'idle';
     this.state = 'idle';
+  }
+
+  /** Point the ring at a portrait. Falls back to the drawn face if it 404s. */
+  setPhoto(src, frame = {}) {
+    this.frame = { ...this.frame, ...frame };
+    const { zoom, x, y } = this.frame;
+
+    // The clip circle spans 38..162. Scale the image up by `zoom` and slide it
+    // so the focal point sits at the circle's center.
+    const side = 124 * zoom;
+    this.imgEl.setAttribute('width', side);
+    this.imgEl.setAttribute('height', side);
+    this.imgEl.setAttribute('x', 100 - side * (x / 100));
+    this.imgEl.setAttribute('y', 100 - side * (y / 100));
+
+    // Let the glowing eye land on the portrait's own eye.
+    if (this.frame.eye) {
+      const g = this.host.querySelector('.fb-eye');
+      g.setAttribute('transform',
+        `translate(${this.frame.eye.x - 121} ${this.frame.eye.y - 93})`);
+      g.style.transformOrigin = `${this.frame.eye.x}px ${this.frame.eye.y}px`;
+    }
+
+    const probe = new Image();
+    probe.onload = () => {
+      this.imgEl.setAttribute('href', src);
+      this.host.classList.add('has-photo');
+    };
+    probe.onerror = () => this.host.classList.remove('has-photo');
+    probe.src = src + (src.includes('?') ? '&' : '?') + 'v=' + Date.now();
   }
 
   static LABELS = {
