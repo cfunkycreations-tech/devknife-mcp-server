@@ -295,22 +295,34 @@ function askPermission(req) {
 }
 
 /* -------------------------------------------------- HUD */
+/* Paints only the fields present. The status poll carries no session until one
+ * exists, and blanking what the stream already filled made live values flip
+ * back to placeholders a few seconds after every reply. */
 function paintHud(s) {
   if (!s) return;
-  $('hModel').textContent = s.model || '—';
-  $('hTools').textContent = s.tools ?? '—';
-  $('hSkills').textContent = s.skills ?? '—';
-  $('hSid').textContent = (s.session || '').slice(0, 8);
-  $('hLessons').textContent = s.lessons ?? 0;
-  $('hBlocked').textContent = (s.blocked || []).length;
-  const up = !/UNREACHABLE/.test(s.backend || '');
-  $('hBackend').textContent = up ? 'local · up' : 'local · down';
-  const badge = $('backendBadge');
-  badge.textContent = up ? 'OFFLINE ✓' : 'MODEL DOWN';
-  badge.className = 'badge mono ' + (up ? 'offline' : 'down');
-  const pct = Math.min(100, 100 * (s.context_tokens || 0) / (s.context_limit || 1));
-  $('hCtx').textContent = (s.context_tokens || 0).toLocaleString();
-  $('ctxBar').style.width = pct + '%';
+  const set = (id, value) => {
+    if (value !== undefined && value !== null) $(id).textContent = value;
+  };
+  set('hModel', s.model);
+  set('hTools', s.tools);
+  set('hSkills', s.skills);
+  set('hLessons', s.lessons);
+  if (s.session) set('hSid', s.session.slice(0, 8));
+  if (s.blocked) set('hBlocked', s.blocked.length);
+
+  if (s.backend !== undefined) {
+    const up = !/UNREACHABLE/.test(s.backend);
+    set('hBackend', up ? 'local · up' : 'local · down');
+    const badge = $('backendBadge');
+    badge.textContent = up ? 'OFFLINE ✓' : 'MODEL DOWN';
+    badge.className = 'badge mono ' + (up ? 'offline' : 'down');
+  }
+
+  if (s.context_tokens !== undefined) {
+    set('hCtx', s.context_tokens.toLocaleString());
+    $('ctxBar').style.width =
+      Math.min(100, 100 * s.context_tokens / (s.context_limit || 1)) + '%';
+  }
   if (s.usage) paintUsage(s.usage);
 }
 
@@ -324,7 +336,10 @@ function paintUsage(u) {
 async function refreshStatus() {
   const s = await (await fetch('/api/status?session_id=' + (sessionId || ''))).json();
   $('hHealth').textContent = (s.health || '').split(' ')[0] || '—';
-  paintHud(Object.assign({ model: s.model, backend: s.backend }, s.session || {}));
+  paintHud(Object.assign(
+    { model: s.model, backend: s.backend, tools: s.tools, skills: s.skills,
+      lessons: s.lessons },
+    s.session || {}));
   const m = await (await fetch('/api/memory')).json();
   $('lessonList').innerHTML = m.lessons.filter(l => !l.retired).slice(0, 30).map(l =>
     `<div class="row"><b>${l.trigger}</b><br>→ ${l.lesson}

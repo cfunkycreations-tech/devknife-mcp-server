@@ -21,8 +21,11 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 import learn
 import llm
+import mcp_client
 import memory
 import safety
+import skills
+import tools
 import usage as usage_mod
 import verify
 import voice
@@ -116,6 +119,11 @@ def status(session_id: str | None = None) -> JSONResponse:
         "model": MODEL,
         "health": verify.health().splitlines()[0],
         "totals": usage_mod.totals(),
+        # Counts come from the process, not the session, so the HUD shows them
+        # before the first message is ever sent.
+        "tools": len(tools.specs()) + len(mcp_client.specs()),
+        "skills": len(skills.catalog()),
+        "lessons": len(memory.active_lessons()),
         "session": b.status() if b else None,
         "policy": {k: len(v) for k, v in safety.load_policy().items()},
     })
