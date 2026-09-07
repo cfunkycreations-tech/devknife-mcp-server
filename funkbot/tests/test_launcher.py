@@ -49,3 +49,50 @@ def test_icon_is_a_valid_ico_wrapping_a_png(tmp_path):
     size, offset = struct.unpack("<II", blob[14:22])
     assert blob[offset:offset + 8] == b"\x89PNG\r\n\x1a\n"
     assert size == len(png)
+
+
+# ------------------------------------------------------------------ health cost
+
+def test_quick_health_does_not_run_the_test_suite():
+    """The UI polls status every 20s; running pytest there pinned a core."""
+    import time
+
+    import verify
+
+    started = time.time()
+    report = verify.health()
+    assert time.time() - started < 2.0
+    assert "tests" not in report          # syntax + imports only
+    assert report.startswith("HEALTHY")
+
+
+def test_full_health_is_cached(monkeypatch):
+    """Never call health(full=True) for real from inside this suite — it shells
+    out to pytest, which re-enters the suite and hangs. Stub the checks."""
+    import verify
+
+    calls = []
+
+    def fake_checks(*a, **k):
+        calls.append(1)
+        return True, "[PASS] stub"
+
+    monkeypatch.setattr(verify, "run_checks", fake_checks)
+    verify._LAST_FULL.clear()
+    verify.health(full=True)
+    verify.health(full=True)
+    assert len(calls) == 1                       # second call served from cache
+    verify._LAST_FULL.clear()
+
+
+def test_a_check_running_inside_a_check_does_not_re_enter_pytest(monkeypatch):
+    """A self-edit made from inside the suite must not shell out to pytest again."""
+    import verify
+
+    monkeypatch.setenv(verify.IN_CHECK, "1")
+    ran = []
+    monkeypatch.setattr(verify.subprocess, "run",
+                        lambda cmd, **k: ran.append(cmd) or type(
+                            "P", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    verify.run_checks()
+    assert not any("pytest" in " ".join(c) for c in ran)

@@ -73,7 +73,7 @@ def main() -> None:
 
     if "--status" in args:
         print(llm.health())
-        print(verify.health())
+        print(verify.health(full=True))
         print("totals:", usage_mod.totals())
         return
 
@@ -115,7 +115,7 @@ def main() -> None:
             if line == "/status":
                 print(bot.status()); continue
             if line == "/health":
-                print(verify.health()); continue
+                print(verify.health(full=True)); continue
             if line == "/learn":
                 print(learn.learn(bot.session_id)); continue
 

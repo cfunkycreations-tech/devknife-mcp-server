@@ -14,6 +14,7 @@ unattended.
 from __future__ import annotations
 
 import contextlib
+import os
 import shutil
 import subprocess
 import time
@@ -29,15 +30,27 @@ CHECKS = [
 ]
 
 
+IN_CHECK = "FUNKBOT_IN_CHECK"
+
+
 def run_checks(skip_tests: bool = False) -> tuple[bool, str]:
-    """Run every check. Returns (ok, combined output)."""
+    """Run every check. Returns (ok, combined output).
+
+    The test step shells out to pytest, so a self-edit made *from inside* a
+    check would re-enter the suite and hang. The child is marked, and a marked
+    process runs syntax and imports only.
+    """
+    nested = os.getenv(IN_CHECK) == "1"
+    env = {**os.environ, IN_CHECK: "1"}
+
     lines = []
     for name, cmd in CHECKS:
-        if skip_tests and name == "tests":
+        if (skip_tests or nested) and name == "tests":
             continue
         if name == "tests" and not (ROOT / "tests").is_dir():
             continue
-        p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=300)
+        p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True,
+                           timeout=300, env=env)
         status = "PASS" if p.returncode == 0 else "FAIL"
         lines.append(f"[{status}] {name}")
         if p.returncode != 0:
@@ -97,9 +110,28 @@ def safe_self_edit(description: str, fn, *args, **kwargs) -> str:
     return f"{result}\nverified in {time.time() - started:.1f}s and committed"
 
 
-def health() -> str:
-    """Is FunkBot currently sound? Runs the full check suite read-only."""
-    ok, report = run_checks()
+_LAST_FULL: dict = {}
+FULL_HEALTH_TTL = 300          # seconds
+
+
+def health(full: bool = False) -> str:
+    """Is FunkBot currently sound?
+
+    Default is the quick pass — syntax and imports, well under a second. The
+    full pass also runs the test suite, which takes seconds and pins a core, so
+    it is cached for FULL_HEALTH_TTL and never runs on a UI poll. Gating a
+    self-edit always uses the full suite via guard(), not this.
+    """
+    if full:
+        cached = _LAST_FULL.get("at", 0)
+        if time.time() - cached < FULL_HEALTH_TTL:
+            ok, report = _LAST_FULL["ok"], _LAST_FULL["report"]
+        else:
+            ok, report = run_checks()
+            _LAST_FULL.update(at=time.time(), ok=ok, report=report)
+    else:
+        ok, report = run_checks(skip_tests=True)
+
     disk = shutil.disk_usage(ROOT)
     return (f"{'HEALTHY' if ok else 'BROKEN'}\n{report}\n"
             f"disk free: {disk.free // 2**20} MB")
