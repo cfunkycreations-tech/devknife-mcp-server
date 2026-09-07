@@ -84,11 +84,14 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      # Uses the preinstalled gh CLI rather than a third-party action: orgs that
+      # restrict Actions to GitHub-authored ones reject the job outright.
       - name: Publish a release on a tag
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            funkbot/dist/FunkBot.exe
-            funkbot/installer/FunkBot-Setup.exe
-          generate_release_notes: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" `
+            dist\FunkBot.exe installer\FunkBot-Setup.exe `
+            --generate-notes --title "FunkBot $env:GITHUB_REF_NAME"
