@@ -23,11 +23,16 @@ import time
 import selfmod
 from config import ROOT
 
+# Always re-invoke the interpreter that is already running. Hardcoding
+# "python3" breaks on Windows, where that name resolves to the Microsoft Store
+# stub and every check fails with "Python was not found".
+PYTHON = sys.executable or "python3"
+
 CHECKS = [
-    ("syntax", ["python3", "-m", "compileall", "-q", "."]),
-    ("import", ["python3", "-c",
+    ("syntax", [PYTHON, "-m", "compileall", "-q", "."]),
+    ("import", [PYTHON, "-c",
                 "import config, memory, skills, tools, safety, hooks, usage"]),
-    ("tests", ["python3", "-m", "pytest", "-q", "--no-header", "tests"]),
+    ("tests", [PYTHON, "-m", "pytest", "-q", "--no-header", "tests"]),
 ]
 
 

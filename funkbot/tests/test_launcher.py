@@ -156,3 +156,14 @@ def test_packaged_selfmod_write_reports_instead_of_pretending(monkeypatch):
 
     monkeypatch.setattr(selfmod, "PACKAGED", True)
     assert "CANNOT EDIT" in selfmod.write_own_file("probe.py", "x = 1\n")
+
+
+def test_checks_use_the_running_interpreter_not_a_bare_name():
+    """Hardcoding "python3" made every check fail on Windows, where that name
+    hits the Microsoft Store stub and reports "Python was not found"."""
+    import sys
+
+    import verify
+
+    for name, cmd in verify.CHECKS:
+        assert cmd[0] == sys.executable, f"{name} check must re-invoke sys.executable"
