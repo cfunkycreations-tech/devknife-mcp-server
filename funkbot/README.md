@@ -7,18 +7,32 @@ self-improvement: it rewrites its own code and learns from its own learning.
 
 ## Launch
 
-**Windows — build the exe once, double-click forever:**
+**Windows — install it:**
+
+Grab `FunkBot-Setup.exe` from the [latest release](../../releases/latest), or from
+the artifacts of any run of the
+[Windows build workflow](../../actions/workflows/build-windows.yml). It installs
+per-user (no admin prompt), adds Start Menu and desktop shortcuts, and can start
+FunkBot at sign-in. Memory, skills and dictations live in
+`%LOCALAPPDATA%\FunkBot\data`, so upgrading or uninstalling never eats what
+FunkBot has learned.
+
+Build it yourself, or want the portable single file instead:
 
 ```
-build_exe.bat          ->  dist\FunkBot.exe
+build_exe.bat     ->  Desktop\FunkBot.exe          (copied there for you)
+                  ->  dist\FunkBot.exe             (portable, data beside the exe)
+                  ->  installer\FunkBot-Setup.exe  (when Inno Setup is present)
 ```
 
 It installs deps, generates the icon, runs the tests, and refuses to build a
-broken exe. Double-clicking `FunkBot.exe` starts your local model if it isn't
-already running, boots the server, and opens the UI. Data lands in `data\` next
-to the exe, so upgrading is just replacing the file. No build needed if you'd
-rather not: `FunkBot.bat` does the same thing straight from source.
-PyInstaller can't cross-compile, so a Windows exe must be built on Windows.
+broken exe. No build needed at all if you'd rather not — `FunkBot.bat` runs it
+straight from source. PyInstaller can't cross-compile, so Windows binaries get
+built on Windows; that's what the Actions workflow is for.
+
+Packaged builds can't edit their own source (it lives inside the executable) and
+report `PACKAGED` rather than a health status. Run from a checkout for
+self-modification.
 
 **Linux / macOS:** `./funkbot.sh` (or `make launch`).
 

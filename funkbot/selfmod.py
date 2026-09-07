@@ -22,6 +22,13 @@ import subprocess
 import sys
 import time
 
+# In a packaged build ROOT points into PyInstaller's temp unpack directory:
+# edits there vanish on exit and there is no git checkout to commit to. Say so
+# rather than pretending an edit stuck.
+PACKAGED = getattr(sys, "frozen", False)
+PACKAGED_NOTE = ("this is a packaged build — its source lives inside the "
+                 "executable. Run FunkBot from a source checkout to edit itself.")
+
 # The directory FunkBot is allowed to edit — its own source tree.
 ROOT = pathlib.Path(__file__).resolve().parent
 
@@ -68,6 +75,8 @@ def search_own_code(needle: str) -> list[str]:
 # --------------------------------------------------------------------------
 
 def _check_and_write(path: pathlib.Path, new_src: str, note: str) -> str:
+    if PACKAGED:
+        return f"CANNOT EDIT — {PACKAGED_NOTE}"
     old_src = path.read_text(encoding="utf-8") if path.exists() else ""
     if path.suffix == ".py":
         try:

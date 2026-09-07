@@ -151,7 +151,7 @@ def spawn_swarm(tasks_json: str, preset: str = "researcher") -> str:
 @tool("self_check", "Run your own check suite — syntax, imports, and tests. Use "
       "before and after touching your own code.", _s())
 def self_check() -> str:
-    return verify.health()
+    return verify.health(full=True)
 
 
 @tool("verified_self_edit", "Modify your own source safely: applies the change, "
