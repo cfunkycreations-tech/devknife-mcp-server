@@ -17,6 +17,17 @@ Write-Host "   FUNKBOT  |  building your desktop app" -ForegroundColor Green
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host ""
 
+# ---------------------------------------------------------------- disk
+# PyInstaller unpacks a lot before it writes the exe; running out mid-build
+# leaves a confusing mess, so check first.
+$drive = (Get-Item $env:LOCALAPPDATA).PSDrive
+$freeGB = [math]::Round($drive.Free / 1GB, 1)
+if ($drive.Free -lt 2GB) {
+    Die ("Only $freeGB GB free on $($drive.Name): - the build needs about 2 GB. " +
+         "Free some space and run this again.")
+}
+Say "Disk: $freeGB GB free"
+
 # ---------------------------------------------------------------- python
 $py = Get-Command python -ErrorAction SilentlyContinue
 if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
