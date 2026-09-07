@@ -26,12 +26,22 @@ def sse(*chunks: dict) -> bytes:
 
 
 SCRIPT: list[bytes] = []
+SEEN: list[dict] = []          # payloads the server received, newest last
 
 
 class Stub(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
-        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        SEEN.append(json.loads(raw))
         payload = SCRIPT.pop(0) if SCRIPT else sse({"choices": [{"delta": {}}]})
+        if payload.startswith(b"400 "):        # a refusal, not a completion
+            body = payload[4:]
+            self.send_response(400)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
@@ -172,3 +182,37 @@ def test_denied_tool_never_executes():
     assert not pathlib.Path("/tmp/nope.txt").exists()
     assert any("PERMISSION DENIED" in m.get("content", "")
                for m in bot.messages if m.get("role") == "tool")
+
+
+def test_tool_history_is_sent_in_openai_wire_format():
+    """A second turn carrying a tool call and its result must not be malformed.
+
+    FunkBot keeps tool calls as {id, name, args}; sending that back verbatim is
+    what made strict servers answer 400 Bad Request mid-conversation.
+    """
+    SCRIPT.append(sse(delta(content="done")))
+    SEEN.clear()
+    llm.chat([
+        {"role": "user", "content": "recall funkbot"},
+        {"role": "assistant", "content": "",
+         "tool_calls": [{"id": "c1", "name": "recall", "args": {"query": "funkbot"}}]},
+        {"role": "tool", "tool_call_id": "c1", "name": "recall",
+         "content": "nothing yet", "_ok": True},
+    ])
+    sent = SEEN[-1]["messages"]
+
+    call = sent[1]["tool_calls"][0]
+    assert call["type"] == "function"
+    assert call["function"]["name"] == "recall"
+    assert json.loads(call["function"]["arguments"]) == {"query": "funkbot"}
+    assert "name" not in call and "args" not in call
+
+    assert sent[2] == {"role": "tool", "tool_call_id": "c1", "content": "nothing yet"}
+
+
+def test_a_refusal_reports_what_the_server_said():
+    SCRIPT.append(b"400 invalid 'messages': tool_calls malformed")
+    with pytest.raises(llm.LocalError) as err:
+        llm.chat([{"role": "user", "content": "hi"}])
+    assert "HTTP 400" in str(err.value)
+    assert "tool_calls malformed" in str(err.value)

@@ -124,6 +124,16 @@ def _post(path: str, payload: dict, stream: bool):
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
         return urllib.request.urlopen(req, timeout=None if stream else 600)
+    except urllib.error.HTTPError as e:
+        # The server answered — it just refused. Show what it actually said.
+        try:
+            detail = e.read().decode("utf-8", "replace")[:2000]
+        except Exception:
+            detail = ""
+        raise LocalError(
+            f"{url} refused the request (HTTP {e.code} {e.reason})."
+            + (f"\n{detail}" if detail else "")
+        ) from e
     except urllib.error.URLError as e:
         ports = ", ".join(str(p) for p in DISCOVER_PORTS)
         raise LocalError(
@@ -146,6 +156,39 @@ def _sse_lines(response) -> Iterable[dict]:
             yield json.loads(data)
         except json.JSONDecodeError:
             continue
+
+
+def _to_openai_messages(messages: list[dict]) -> list[dict]:
+    """Normalized messages -> exactly what an OpenAI-compatible server expects.
+
+    FunkBot carries tool calls around as {id, name, args} and tags tool results
+    with bookkeeping keys of its own. Sent as-is, a strict server (LM Studio,
+    vLLM) rejects the whole request with a 400, so the shape is fixed here — the
+    one place that talks the wire protocol.
+    """
+    wire: list[dict] = []
+    for m in messages:
+        role = m.get("role")
+        if role == "tool":
+            wire.append({"role": "tool",
+                         "tool_call_id": m.get("tool_call_id", ""),
+                         "content": m.get("content") or ""})
+            continue
+        out = {"role": role, "content": m.get("content") or ""}
+        calls = m.get("tool_calls")
+        if role == "assistant" and calls:
+            out["tool_calls"] = [{
+                "id": c.get("id") or f"call_{i}",
+                "type": "function",
+                "function": {
+                    "name": c.get("name", ""),
+                    # Servers want the arguments as a JSON *string*.
+                    "arguments": c["args"] if isinstance(c.get("args"), str)
+                    else json.dumps(c.get("args") or {}, default=str),
+                },
+            } for i, c in enumerate(calls)]
+        wire.append(out)
+    return wire
 
 
 def _to_openai_tools(specs: list[dict]) -> list[dict]:
@@ -173,7 +216,8 @@ def _chat_local(messages: list[dict], tools: list[dict], system: str,
                 effort: str, max_tokens: int) -> Reply:
     payload = {
         "model": resolve()[1],
-        "messages": ([{"role": "system", "content": system}] if system else []) + messages,
+        "messages": ([{"role": "system", "content": system}] if system else [])
+                    + _to_openai_messages(messages),
         "max_tokens": max_tokens,
         "temperature": TEMPERATURE,
         "stream": True,
