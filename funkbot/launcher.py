@@ -24,13 +24,39 @@ import urllib.request
 import webbrowser
 
 # Running from a PyInstaller bundle: sources live in _MEIPASS, but data the bot
-# writes must live next to the .exe, not in the temp unpack dir.
+# writes must live somewhere it can actually write.
 BUNDLED = getattr(sys, "frozen", False)
 HERE = os.path.dirname(os.path.abspath(getattr(sys, "_MEIPASS", __file__)))
 BESIDE_EXE = os.path.dirname(sys.executable) if BUNDLED else HERE
 
+
+def _writable(path: str) -> bool:
+    try:
+        os.makedirs(path, exist_ok=True)
+        probe = os.path.join(path, ".write-probe")
+        with open(probe, "w") as fh:
+            fh.write("x")
+        os.remove(probe)
+        return True
+    except OSError:
+        return False
+
+
+def default_data_dir() -> str:
+    """Beside the exe when that is writable (portable use); otherwise the
+    per-user app data directory — an install under Program Files is read-only,
+    and silently failing to save memory there would be worse than moving."""
+    beside = os.path.join(BESIDE_EXE, "data")
+    if not BUNDLED or _writable(beside):
+        return beside
+    if os.name == "nt":
+        root = os.getenv("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(root, "FunkBot", "data")
+    return os.path.join(os.path.expanduser("~"), ".funkbot", "data")
+
+
 sys.path.insert(0, HERE)
-os.environ.setdefault("FUNKBOT_DATA", os.path.join(BESIDE_EXE, "data"))
+os.environ.setdefault("FUNKBOT_DATA", default_data_dir())
 
 G, P, D, R, X = "\033[38;5;48m", "\033[38;5;141m", "\033[2m", "\033[38;5;203m", "\033[0m"
 BANNER = rf"""{G}

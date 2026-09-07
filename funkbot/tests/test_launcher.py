@@ -96,3 +96,63 @@ def test_a_check_running_inside_a_check_does_not_re_enter_pytest(monkeypatch):
                             "P", (), {"returncode": 0, "stdout": "", "stderr": ""})())
     verify.run_checks()
     assert not any("pytest" in " ".join(c) for c in ran)
+
+
+# ------------------------------------------------------------------ data dir
+
+def test_portable_build_keeps_data_beside_the_exe(monkeypatch, tmp_path):
+    import launcher
+
+    monkeypatch.setattr(launcher, "BUNDLED", True)
+    monkeypatch.setattr(launcher, "BESIDE_EXE", str(tmp_path))
+    assert launcher.default_data_dir() == str(tmp_path / "data")
+
+
+def test_read_only_install_falls_back_to_per_user_data(monkeypatch, tmp_path):
+    """Installed under Program Files the exe directory is not writable;
+    silently failing to save memory there would be worse than relocating."""
+    import launcher
+
+    monkeypatch.setattr(launcher, "BUNDLED", True)
+    monkeypatch.setattr(launcher, "BESIDE_EXE", "C:\\Program Files\\FunkBot")
+    monkeypatch.setattr(launcher, "_writable", lambda path: False)
+    monkeypatch.setattr(launcher.os, "name", "nt")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    assert launcher.default_data_dir() == str(tmp_path / "FunkBot" / "data")
+
+
+def test_source_runs_are_unaffected(monkeypatch, tmp_path):
+    import launcher
+
+    monkeypatch.setattr(launcher, "BUNDLED", False)
+    monkeypatch.setattr(launcher, "BESIDE_EXE", str(tmp_path))
+    monkeypatch.setattr(launcher, "_writable", lambda path: False)
+    assert launcher.default_data_dir() == str(tmp_path / "data")
+
+
+# ------------------------------------------------------------------ packaged builds
+
+def test_packaged_health_is_not_reported_as_broken(monkeypatch):
+    """A frozen build has no source tree to compile; that is not a fault."""
+    import verify
+
+    monkeypatch.setattr(verify, "PACKAGED", True)
+    report = verify.health()
+    assert report.startswith("PACKAGED")
+    assert "BROKEN" not in report
+
+
+def test_packaged_build_refuses_to_self_edit(monkeypatch):
+    import verify
+
+    monkeypatch.setattr(verify, "PACKAGED", True)
+    out = verify.safe_self_edit("x", lambda: "should not run")
+    assert "packaged build" in out
+
+
+def test_packaged_selfmod_write_reports_instead_of_pretending(monkeypatch):
+    import selfmod
+
+    monkeypatch.setattr(selfmod, "PACKAGED", True)
+    assert "CANNOT EDIT" in selfmod.write_own_file("probe.py", "x = 1\n")

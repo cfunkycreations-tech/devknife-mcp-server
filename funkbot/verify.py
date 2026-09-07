@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import sys
 import shutil
 import subprocess
 import time
@@ -32,6 +33,12 @@ CHECKS = [
 
 IN_CHECK = "FUNKBOT_IN_CHECK"
 
+# A packaged build has no source tree, no interpreter to shell out to, and no
+# git — so the source checks below cannot run, and neither can self-editing.
+PACKAGED = getattr(sys, "frozen", False)
+PACKAGED_NOTE = ("packaged build — source checks and self-modification need a "
+                 "source checkout; run from source for those")
+
 
 def run_checks(skip_tests: bool = False) -> tuple[bool, str]:
     """Run every check. Returns (ok, combined output).
@@ -40,6 +47,9 @@ def run_checks(skip_tests: bool = False) -> tuple[bool, str]:
     check would re-enter the suite and hang. The child is marked, and a marked
     process runs syntax and imports only.
     """
+    if PACKAGED:
+        return True, f"[SKIP] {PACKAGED_NOTE}"
+
     nested = os.getenv(IN_CHECK) == "1"
     env = {**os.environ, IN_CHECK: "1"}
 
@@ -86,6 +96,9 @@ class VerificationFailed(RuntimeError):
 @contextlib.contextmanager
 def guard(description: str, commit: bool = True):
     """Run a self-modification, verify it, roll it back if it broke anything."""
+    if PACKAGED:
+        raise VerificationFailed(
+            f"refusing to self-edit '{description}': {PACKAGED_NOTE}")
     before = _snapshot()
     yield
     ok, report = run_checks()
@@ -133,5 +146,5 @@ def health(full: bool = False) -> str:
         ok, report = run_checks(skip_tests=True)
 
     disk = shutil.disk_usage(ROOT)
-    return (f"{'HEALTHY' if ok else 'BROKEN'}\n{report}\n"
-            f"disk free: {disk.free // 2**20} MB")
+    state = "PACKAGED" if PACKAGED else ("HEALTHY" if ok else "BROKEN")
+    return f"{state}\n{report}\ndisk free: {disk.free // 2**20} MB"
