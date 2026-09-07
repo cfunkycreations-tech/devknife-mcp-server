@@ -20,7 +20,8 @@ FunkBot has learned.
 Build it yourself, or want the portable single file instead:
 
 ```
-build_exe.bat     ->  dist\FunkBot.exe             (portable, data beside the exe)
+build_exe.bat     ->  Desktop\FunkBot.exe          (copied there for you)
+                  ->  dist\FunkBot.exe             (portable, data beside the exe)
                   ->  installer\FunkBot-Setup.exe  (when Inno Setup is present)
 ```
 

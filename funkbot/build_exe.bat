@@ -68,10 +68,25 @@ if exist "%ISCC%" (
     echo      then run this script again.
 )
 
+REM Put it where you actually want it: on the Desktop. OneDrive moves the real
+REM Desktop folder, so ask Windows where it is rather than assuming.
+for /f "usebackq tokens=2,*" %%a in (`reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" /v Desktop 2^>nul`) do set "DESKTOP=%%b"
+call set "DESKTOP=%DESKTOP%"
+if not exist "%DESKTOP%" set "DESKTOP=%USERPROFILE%\Desktop"
+
+copy /y "dist\FunkBot.exe" "%DESKTOP%\FunkBot.exe" >nul
+if errorlevel 1 (
+    echo  [!] could not copy to the Desktop - grab it from dist\ instead.
+) else (
+    set "ON_DESKTOP=1"
+)
+if defined MADE_INSTALLER copy /y "installer\FunkBot-Setup.exe" "%DESKTOP%\FunkBot-Setup.exe" >nul
+
 echo.
 echo  ===============================================
 echo   Done.
 echo.
+if defined ON_DESKTOP echo   ON YOUR DESKTOP:  FunkBot.exe   ^<- double-click this
 echo   Portable:   %cd%\dist\FunkBot.exe
 if defined MADE_INSTALLER echo   Installer:  %cd%\installer\FunkBot-Setup.exe
 echo.
