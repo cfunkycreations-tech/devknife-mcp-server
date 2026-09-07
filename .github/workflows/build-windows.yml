@@ -4,14 +4,18 @@ name: Build FunkBot for Windows
 # cannot cross-compile, so this is how a .exe gets produced without owning a
 # Windows machine. Every run uploads artifacts you can download; pushing a tag
 # like v1.0.0 also publishes them as a release.
+#
+# Deliberately NOT run on pull requests. This account currently gets no Windows
+# runner (jobs come back in seconds with runner_id 0, never assigned), so a PR
+# trigger only paints every PR red without producing a build. Enable Windows
+# runners under the organization's Actions settings, then add a pull_request
+# trigger back if you want per-PR builds.
 
 on:
   push:
     branches: [main]
     paths: ["funkbot/**", ".github/workflows/build-windows.yml"]
     tags: ["v*"]
-  pull_request:
-    paths: ["funkbot/**", ".github/workflows/build-windows.yml"]
   workflow_dispatch:
 
 permissions:
